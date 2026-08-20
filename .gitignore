@@ -1,0 +1,11 @@
+.env
+*.safetensors
+*.bin
+*.gguf
+*.pt
+*.pth
+*.npz
+*.ckpt
+/models/
+__pycache__/
+*.pyc
