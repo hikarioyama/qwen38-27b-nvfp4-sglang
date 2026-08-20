@@ -24,9 +24,18 @@ import urllib.request
 
 PROMPTS = {
     "LRU": "Write a complete, production-quality Python LRU cache with per-key TTL and a pytest suite.",
-    "JA-code": "PythonでTTL付きLRUキャッシュをクラスとして書いて。pytestも同じファイルに含めて。",
+    # Japanese-language coding prompt used for the JA-code matrix cells.
+    "JA-code": (
+        "Python\u3067TTL\u4ed8\u304dLRU\u30ad\u30e3\u30c3\u30b7\u30e5\u3092"
+        "\u30af\u30e9\u30b9\u3068\u3057\u3066\u66f8\u3044\u3066\u3002"
+        "pytest\u3082\u540c\u3058\u30d5\u30a1\u30a4\u30eb\u306b\u542b\u3081\u3066\u3002"
+    ),
     "EN-prose": "Explain the difference between NVFP4 and BF16 quantization in three paragraphs.",
-    "JA-prose": "量子化NVFP4とBF16の違いを3段落で説明して。",
+    # Japanese-language prose prompt used for the JA-prose matrix cells.
+    "JA-prose": (
+        "\u91cf\u5b50\u5316NVFP4\u3068BF16\u306e\u9055\u3044\u30923\u6bb5\u843d"
+        "\u3067\u8aac\u660e\u3057\u3066\u3002"
+    ),
 }
 
 
