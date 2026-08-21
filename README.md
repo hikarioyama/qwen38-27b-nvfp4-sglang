@@ -15,7 +15,7 @@ This tree is a reproduction kit for launching **Qwen3.8-27B NVFP4** on SGLang (`
 | `scripts/convert_unsloth_modelopt.py` | `weight_packed` → ModelOpt names, reciprocal global scale |
 | `recipes/*.sh.template` | docker launch templates (`docker run -d`, no `--gpus`) |
 | `bench/bench_single_stream.py` | C=1 / n=3 median / TTFT / accept harness |
-| `results/` | C=1 @1024 measured matrix (n=3 median, same-condition) |
+| `results/` | C=1 @1024 short-prompt matrix and REAL-text long-context ctx×C matrix (n=3 median, same-condition) |
 | `env.example` | Example environment variables (comments only) |
 
 ## Overlay (7 files)
@@ -133,6 +133,15 @@ Conditions: C=1, `max_tokens=1024`, thinking off, T=0, seed=0, n=3 median, same-
 | huihui-dflash2 | 5.278 | 4.719 | 2.672 | 1.795 |
 | unsloth-dflash2 | 5.198 | 4.741 | 2.661 | 1.850 |
 | unsloth-nextn | 3.507 | 3.346 | 2.583 | 2.339 |
+
+
+## Long-context matrix (REAL text)
+
+Same Unsloth NVFP4 DFlash2 (K=8, ReplaySSM, KV FP8) serve, **input length × concurrency**, on repeated natural English technical prose (last paragraph = EN-code LRU). Filler is not pad tokens.
+
+Tables: [`results/long-context.md`](results/long-context.md). JSON: [`results/long-context.json`](results/long-context.json).
+
+A prior pad-token filler matrix is **invalid** and is **not published**. The short-prompt C=1 table above is unchanged.
 
 ## Notes
 

@@ -1,0 +1,41 @@
+{
+  "title": "Long-context REAL-text matrix",
+  "note": "A prior pad-token filler matrix is invalid and is not published. The short-prompt C=1 matrix is unchanged.",
+  "conditions": {
+    "recipe": "unsloth-dflash2",
+    "quantization": "NVFP4",
+    "spec": "DFlash2 K=8 ReplaySSM",
+    "kv_cache": "FP8",
+    "max_new_tokens": 1024,
+    "thinking": "off",
+    "temperature": 0,
+    "seed": 0,
+    "n": 3,
+    "warmup_discard": 1,
+    "aggregation": "median of 3 timed batches",
+    "same_condition": true,
+    "decode_tok_s": "after first token",
+    "ttft": "prefill time to first token (seconds)",
+    "accept": "spec_accept_length",
+    "context_window": 32768,
+    "prompt": {
+      "filler": "repeated natural English technical prose",
+      "task": "last paragraph is the EN-code LRU task",
+      "not": "pad tokens or the word padding"
+    }
+  },
+  "cells": [
+    {"input_tokens": 8192, "concurrency": 1, "decode_tok_s": 241.57, "ttft_s": 0.606, "accept": 4.655},
+    {"input_tokens": 8192, "concurrency": 2, "decode_tok_s": 232.63, "ttft_s": 0.917, "accept": 5.020},
+    {"input_tokens": 8192, "concurrency": 4, "decode_tok_s": 186.81, "ttft_s": 1.535, "accept": 4.876},
+    {"input_tokens": 8192, "concurrency": 8, "decode_tok_s": 131.78, "ttft_s": 2.769, "accept": 4.592},
+    {"input_tokens": 16384, "concurrency": 1, "decode_tok_s": 262.08, "ttft_s": 0.759, "accept": 5.146},
+    {"input_tokens": 16384, "concurrency": 2, "decode_tok_s": 213.14, "ttft_s": 1.120, "accept": 4.676},
+    {"input_tokens": 16384, "concurrency": 4, "decode_tok_s": 179.09, "ttft_s": 1.852, "accept": 4.923},
+    {"input_tokens": 16384, "concurrency": 8, "decode_tok_s": 127.04, "ttft_s": 3.316, "accept": 4.900},
+    {"input_tokens": 31744, "concurrency": 1, "decode_tok_s": 196.86, "ttft_s": 0.918, "accept": 3.946, "note": "input clamped so input+1024 fits 32768"},
+    {"input_tokens": 31744, "concurrency": 2, "decode_tok_s": 185.08, "ttft_s": 1.329, "accept": 4.206, "note": "input clamped so input+1024 fits 32768"},
+    {"input_tokens": 31744, "concurrency": 4, "decode_tok_s": 160.21, "ttft_s": 1.553, "accept": 4.104, "note": "input clamped so input+1024 fits 32768"},
+    {"input_tokens": 31744, "concurrency": 8, "decode_tok_s": 119.51, "ttft_s": 2.514, "accept": 4.189, "note": "input clamped so input+1024 fits 32768"}
+  ]
+}
