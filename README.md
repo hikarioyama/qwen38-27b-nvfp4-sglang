@@ -147,7 +147,7 @@ Same Unsloth NVFP4 DFlash2 (K=8, ReplaySSM, KV FP8) serve, **input length × con
 
 ![Unsloth Qwen3.8-27B NVFP4 — decode vs prefill](results/fig-unsloth-decode-prefill.png)
 
-Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel timer. Tables: [`results/long-context.md`](results/long-context.md). JSON: [`results/long-context.json`](results/long-context.json).
+The figure plots **per-stream** rates (so lines fall with C). System throughput is C × per-stream (rises with C, sublinear) — adding concurrent requests does not reduce system tok/s. Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel timer. Tables: [`results/long-context.md`](results/long-context.md). JSON: [`results/long-context.json`](results/long-context.json).
 
 ```bash
 python3 bench/bench_long_context.py \

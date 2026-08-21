@@ -18,9 +18,9 @@ Machine-readable copy: [`long-context.json`](long-context.json).
 
 ![Unsloth Qwen3.8-27B NVFP4 — decode vs prefill](fig-unsloth-decode-prefill.png)
 
-Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel timer. Decode is tok/s after the first token.
+The figure plots **per-stream** rates (so lines fall with C). System throughput is C × per-stream (rises with C, sublinear). Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel timer. Decode is tok/s after the first token.
 
-## Decode tok/s (after first token, n=3 median)
+## Per-stream decode tok/s (after first token, median of 3 timed batches)
 
 | input tokens \ C | 1 | 2 | 4 | 8 |
 |---|---:|---:|---:|---:|
@@ -28,7 +28,15 @@ Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel time
 | 16384 | 262.08 | 213.14 | 179.09 | 127.04 |
 | 31744 | 196.86 | 185.08 | 160.21 | 119.51 |
 
-## Prefill TTFT (seconds, n=3 median)
+## Aggregate decode tok/s (C × per-stream, median of 3 timed batches)
+
+| input tokens \ C | 1 | 2 | 4 | 8 |
+|---|---:|---:|---:|---:|
+| 8192 | 241.57 | 465.26 | 747.24 | 1054.24 |
+| 16384 | 262.08 | 426.28 | 716.36 | 1016.32 |
+| 31744 | 196.86 | 370.16 | 640.84 | 956.08 |
+
+## Prefill TTFT (seconds, median of 3 timed batches)
 
 | input tokens \ C | 1 | 2 | 4 | 8 |
 |---|---:|---:|---:|---:|
@@ -36,7 +44,15 @@ Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel time
 | 16384 | 0.759 | 1.120 | 1.852 | 3.316 |
 | 31744 | 0.918 | 1.329 | 1.553 | 2.514 |
 
-## Accept length (n=3 median)
+## Aggregate prefill tok/s (C × input_tokens / TTFT, median of 3 timed batches)
+
+| input tokens \ C | 1 | 2 | 4 | 8 |
+|---|---:|---:|---:|---:|
+| 8192 | 13518 | 17866 | 21348 | 23664 |
+| 16384 | 21586 | 29257 | 35387 | 39527 |
+| 31744 | 34580 | 47772 | 81761 | 101016 |
+
+## Accept length (median of 3 timed batches)
 
 | input tokens \ C | 1 | 2 | 4 | 8 |
 |---|---:|---:|---:|---:|
@@ -44,9 +60,9 @@ Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel time
 | 16384 | 5.146 | 4.676 | 4.923 | 4.900 |
 | 31744 | 3.946 | 4.206 | 4.104 | 4.189 |
 
-## Combined cells
+## Combined cells (per-stream decode)
 
-| input tokens | C | decode tok/s | TTFT s | accept |
+| input tokens | C | per-stream decode tok/s | TTFT s | accept |
 |---|---:|---:|---:|---:|
 | 8192 | 1 | 241.57 | 0.606 | 4.655 |
 | 8192 | 2 | 232.63 | 0.917 | 5.020 |
