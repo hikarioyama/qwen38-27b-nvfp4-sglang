@@ -16,6 +16,10 @@ The short-prompt C=1 matrix in [`MATRIX.md`](MATRIX.md) is unchanged.
 
 Machine-readable copy: [`long-context.json`](long-context.json).
 
+![Unsloth Qwen3.8-27B NVFP4 — decode vs prefill](fig-unsloth-decode-prefill.png)
+
+Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel timer. Decode is tok/s after the first token.
+
 ## Decode tok/s (after first token, n=3 median)
 
 | input tokens \ C | 1 | 2 | 4 | 8 |

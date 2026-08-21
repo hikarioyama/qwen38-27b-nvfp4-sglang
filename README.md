@@ -1,6 +1,6 @@
 # Qwen3.8-27B NVFP4 × SGLang reproduction recipe
 
-This tree is a reproduction kit for launching **Qwen3.8-27B NVFP4** on SGLang (`lmsysorg/sglang:dev-cu13`) and measuring single-stream decode under the same conditions.
+This tree is a reproduction kit for launching **Qwen3.8-27B NVFP4** on SGLang (pinned `lmsysorg/sglang@sha256:96cbac6a4c834f8233873b19df6f0e025658d53fb81b8baa510bc9cd3ea62b95`) and measuring single-stream decode under the same conditions.
 
 - **Weights are not included.** Provide your own checkpoints.
 - Paths, GPU UUID, and port are all environment variables. This repository does not require a host-specific absolute path.
@@ -15,12 +15,13 @@ This tree is a reproduction kit for launching **Qwen3.8-27B NVFP4** on SGLang (`
 | `scripts/convert_unsloth_modelopt.py` | `weight_packed` → ModelOpt names, reciprocal global scale |
 | `recipes/*.sh.template` | docker launch templates (`docker run -d`, no `--gpus`) |
 | `bench/bench_single_stream.py` | C=1 / n=3 median / TTFT / accept harness |
-| `results/` | C=1 @1024 short-prompt matrix and REAL-text long-context ctx×C matrix (n=3 median, same-condition) |
+| `bench/bench_long_context.py` | REAL-text input-length × concurrency harness |
+| `results/` | C=1 @1024 short-prompt matrix, REAL-text long-context ctx×C matrix, and decode-vs-prefill figure (n=3 median, same-condition) |
 | `env.example` | Example environment variables (comments only) |
 
 ## Overlay (7 files)
 
-In-container path is `/sgl-workspace/sglang/python/sglang/<rel>`. Do not mount the whole tree.
+In-container path is `/sgl-workspace/sglang/python/sglang/<rel>`. **Bind each of the 7 files, not the overlay directory.** Host path `$OVERLAY_DIR/<rel>` → container `$SGL_PY/<rel>:ro` with `SGL_PY=/sgl-workspace/sglang/python/sglang`. The DFlash recipes already list the seven `-v` lines. `OVERLAY_DIR` defaults to `<this-tree>/overlay`.
 
 | overlay relative path | sha256 |
 |---|---|
@@ -60,11 +61,16 @@ python3 scripts/convert_unsloth_modelopt.py \
 
 Step 3 is rename + `weight_scale_2 = 1/weight_global_scale`, `input_scale = 1/input_global_scale` only. Copy `lm_head` / norm / MTP. `hf_quant_config.json` is NVFP4 / `group_size` 16 / `exclude_modules` includes `lm_head`. The `unsloth-dflash2` recipe `MODEL_DIR` is this ModelOpt checkpoint.
 
+Step 2 **requires** `--huihui` / `HUIHUI_DIR`: `pack_unsloth_w4a4attn.py` reads `input_scale` tensors from a Huihui NVFP4 checkpoint (read-only) and writes them onto leftover attention Linears. There is no Unsloth-only pack path. That is a third tree, not `SRC_DIR`.
+
 ## Launch
 
 Pin with `NVIDIA_VISIBLE_DEVICES=$GPU_UUID`. Do not use `--gpus`. `docker run -d`.
 
 ```bash
+# Templates use --pull=never. Pull the pinned digest first.
+docker pull lmsysorg/sglang@sha256:96cbac6a4c834f8233873b19df6f0e025658d53fb81b8baa510bc9cd3ea62b95
+
 set -a
 # source a filled-in copy of env.example
 set +a
@@ -80,7 +86,7 @@ bash recipes/unsloth-nextn.sh.template
 | `unsloth-dflash2` | `modelopt_fp4` | same as above | 7 files | omit |
 | `unsloth-nextn` | (no flag / checkpoint-dependent) | NEXTN steps=3 topk=1 draft=4 | none | default 64 |
 
-Required: `MODEL_DIR`, `GPU_UUID`. DFlash recipes also need `DRAFT_DIR`. Optional: `PORT`, `HOST`, `OVERLAY_DIR`, `FLASHINFER_CACHE`, `IMAGE`.
+Required: `MODEL_DIR`, `GPU_UUID`. DFlash recipes also need `DRAFT_DIR`. Optional: `PORT`, `HOST`, `OVERLAY_DIR`, `FLASHINFER_CACHE`, `IMAGE`. Pin `IMAGE` to the digest in `env.example`; the floating tag `lmsysorg/sglang:dev-cu13` moves. `NVIDIA_VISIBLE_DEVICES=$GPU_UUID` is required (templates do not pass `--gpus`). The served checkpoint must include `chat_template.jinja`.
 
 ## Bench conditions (fixed)
 
@@ -139,7 +145,19 @@ Conditions: C=1, `max_tokens=1024`, thinking off, T=0, seed=0, n=3 median, same-
 
 Same Unsloth NVFP4 DFlash2 (K=8, ReplaySSM, KV FP8) serve, **input length × concurrency**, on repeated natural English technical prose (last paragraph = EN-code LRU). Filler is not pad tokens.
 
-Tables: [`results/long-context.md`](results/long-context.md). JSON: [`results/long-context.json`](results/long-context.json).
+![Unsloth Qwen3.8-27B NVFP4 — decode vs prefill](results/fig-unsloth-decode-prefill.png)
+
+Prefill tok/s in the figure is `input_tokens / TTFT`, not a separate kernel timer. Tables: [`results/long-context.md`](results/long-context.md). JSON: [`results/long-context.json`](results/long-context.json).
+
+```bash
+python3 bench/bench_long_context.py \
+  --base "http://${HOST:-127.0.0.1}:${PORT:-8040}" \
+  --tokenizer "$MODELOPT_DIR" \
+  --out-json results/long-context-run.json \
+  --out-md results/long-context-run.md
+```
+
+`--tokenizer` is a local checkpoint/tokenizer dir (`TOKENIZER_DIR`). Needs `transformers`. Does not start or stop a server.
 
 A prior pad-token filler matrix is **invalid** and is **not published**. The short-prompt C=1 table above is unchanged.
 
