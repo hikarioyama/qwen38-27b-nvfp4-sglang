@@ -49,7 +49,7 @@ python3 scripts/convert_unsloth_lmheadfix.py \
 python3 scripts/pack_unsloth_w4a4attn.py \
   --src "$LMHEADFIX_DIR" \
   --dst "$W4A4_DIR" \
-  --huihui "$HUIHUI_DIR"
+  --nvfp4-donor "$NVFP4_DONOR_DIR"
 
 # 3. compressed-tensors names → ModelOpt names (no repack; reciprocal global scale)
 #    Unsloth:  W = e2m1(weight_packed) * fp8(weight_scale) / weight_global_scale
@@ -61,7 +61,7 @@ python3 scripts/convert_unsloth_modelopt.py \
 
 Step 3 is rename + `weight_scale_2 = 1/weight_global_scale`, `input_scale = 1/input_global_scale` only. Copy `lm_head` / norm / MTP. `hf_quant_config.json` is NVFP4 / `group_size` 16 / `exclude_modules` includes `lm_head`. The `unsloth-dflash2` recipe `MODEL_DIR` is this ModelOpt checkpoint.
 
-Step 2 **requires** `--huihui` / `HUIHUI_DIR`: `pack_unsloth_w4a4attn.py` reads `input_scale` tensors from a Huihui NVFP4 checkpoint (read-only) and writes them onto leftover attention Linears. There is no Unsloth-only pack path. That is a third tree, not `SRC_DIR`.
+Step 2 **requires** `--nvfp4-donor` / `NVFP4_DONOR_DIR`: `pack_unsloth_w4a4attn.py` reads `input_scale` tensors from a donor NVFP4 checkpoint for activation scales (any ModelOpt NVFP4 W4A4 checkpoint with `input_scale` tensors; read-only) and writes them onto leftover attention Linears. There is no Unsloth-only pack path. That is a third tree, not `SRC_DIR`.
 
 ## Launch
 
@@ -74,16 +74,13 @@ docker pull lmsysorg/sglang@sha256:96cbac6a4c834f8233873b19df6f0e025658d53fb81b8
 set -a
 # source a filled-in copy of env.example
 set +a
-bash recipes/huihui-dflash2.sh.template
-# or
 bash recipes/unsloth-dflash2.sh.template
 bash recipes/unsloth-nextn.sh.template
 ```
 
 | Recipe | Quantization | spec | overlay | `--max-running-requests` |
 |---|---|---|---|---|
-| `huihui-dflash2` | `modelopt_fp4` | DFLASH K=8 + ReplaySSM, overlap off | 7 files | omit |
-| `unsloth-dflash2` | `modelopt_fp4` | same as above | 7 files | omit |
+| `unsloth-dflash2` | `modelopt_fp4` | DFLASH K=8 + ReplaySSM, overlap off | 7 files | omit |
 | `unsloth-nextn` | (no flag / checkpoint-dependent) | NEXTN steps=3 topk=1 draft=4 | none | default 64 |
 
 Required: `MODEL_DIR`, `GPU_UUID`. DFlash recipes also need `DRAFT_DIR`. Optional: `PORT`, `HOST`, `OVERLAY_DIR`, `FLASHINFER_CACHE`, `IMAGE`. Pin `IMAGE` to the digest in `env.example`; the floating tag `lmsysorg/sglang:dev-cu13` moves. `NVIDIA_VISIBLE_DEVICES=$GPU_UUID` is required (templates do not pass `--gpus`). The served checkpoint must include `chat_template.jinja`.
@@ -100,7 +97,7 @@ Required: `MODEL_DIR`, `GPU_UUID`. DFlash recipes also need `DRAFT_DIR`. Optiona
 ```bash
 python3 bench/bench_single_stream.py \
   --base "http://${HOST:-127.0.0.1}:${PORT:-8040}" \
-  --recipe huihui-dflash2 \
+  --recipe unsloth-dflash2 \
   --prompt LRU
 ```
 
@@ -120,7 +117,6 @@ Conditions: C=1, `max_tokens=1024`, thinking off, T=0, seed=0, n=3 median, same-
 
 | recipe \ prompt | LRU | JA-code | EN-prose | JA-prose |
 |---|---|---|---|---|
-| huihui-dflash2 | 270.08 | 241.05 | 135.43 | 91.41 |
 | unsloth-dflash2 | 265.75 | 242.71 | 136.11 | 95.08 |
 | unsloth-nextn | 120.32 | 114.87 | 88.37 | 79.89 |
 
@@ -128,7 +124,6 @@ Conditions: C=1, `max_tokens=1024`, thinking off, T=0, seed=0, n=3 median, same-
 
 | recipe \ prompt | LRU | JA-code | EN-prose | JA-prose |
 |---|---|---|---|---|
-| huihui-dflash2 | 0.026 | — | — | — |
 | unsloth-dflash2 | — | — | — | — |
 | unsloth-nextn | — | — | — | — |
 
@@ -136,7 +131,6 @@ Conditions: C=1, `max_tokens=1024`, thinking off, T=0, seed=0, n=3 median, same-
 
 | recipe \ prompt | LRU | JA-code | EN-prose | JA-prose |
 |---|---|---|---|---|
-| huihui-dflash2 | 5.278 | 4.719 | 2.672 | 1.795 |
 | unsloth-dflash2 | 5.198 | 4.741 | 2.661 | 1.850 |
 | unsloth-nextn | 3.507 | 3.346 | 2.583 | 2.339 |
 

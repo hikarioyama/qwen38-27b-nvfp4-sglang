@@ -3,16 +3,16 @@
 
 Source is never overwritten. GPU is never used.
 
-Paths are required via --src/--dst/--huihui or SRC_DIR/DST_DIR/HUIHUI_DIR.
+Paths are required via --src/--dst/--nvfp4-donor or SRC_DIR/DST_DIR/NVFP4_DONOR_DIR.
 Example (not required):
   --src $HOME/models/Qwen3.8-27B-NVFP4-unsloth-lmheadfix
   --dst $HOME/models/Qwen3.8-27B-NVFP4-unsloth-w4a4attn
-  --huihui $HOME/models/Huihui-Qwen3.8-27B-abliterated-thinking-cut-k2-nvfp4-w4a4
+  --nvfp4-donor $HOME/models/Qwen3.8-27B-NVFP4-w4a4-donor
 
   - 232 leftover FP8 weights packed e2m1+block16 (Unsloth divisor globals)
-  - 96 in_proj_a/b BF16 packed the same way (Huihui already NVFP4'd these)
+  - 96 in_proj_a/b BF16 packed the same way
   - MLP 0-55 / norms / conv / mtp / lm_head copied byte-identical
-  - input_global_scale = 1 / Huihui same-module input_scale (read-only steal)
+  - input_global_scale = 1 / donor same-module input_scale (read-only steal)
   - config: drop group_0, expand group_1.targets to attn+mlp(+in_proj_a/b),
     keep lm_head in ignore, stay compressed-tensors
 """
@@ -33,7 +33,7 @@ from safetensors import safe_open
 
 SRC = os.environ.get("SRC_DIR", "")
 DST = os.environ.get("DST_DIR", "")
-HUI = os.environ.get("HUIHUI_DIR", "")
+DONOR = os.environ.get("NVFP4_DONOR_DIR", "")
 
 DTYPE_SIZE = {
     "F64": 8, "F32": 4, "F16": 2, "BF16": 2,
@@ -201,7 +201,7 @@ def nvfp4_quad(mod: str, n: int, k: int, kind: str) -> list[tuple]:
 def steal_input_scales(mods: set[str]) -> dict[str, float]:
     out: dict[str, float] = {}
     missing = []
-    with safe_open(os.path.join(HUI, "model.safetensors"), framework="pt") as hf:
+    with safe_open(os.path.join(DONOR, "model.safetensors"), framework="pt") as hf:
         keys = set(hf.keys())
         for mod in mods:
             key = mod + ".input_scale"
@@ -210,10 +210,10 @@ def steal_input_scales(mods: set[str]) -> dict[str, float]:
                 continue
             val = float(hf.get_tensor(key).item())
             if not (val > 0.0) or val != val:
-                raise RuntimeError(f"bad Huihui input_scale {key}={val}")
+                raise RuntimeError(f"bad donor input_scale {key}={val}")
             out[mod] = val
     if missing:
-        raise RuntimeError(f"Huihui missing {len(missing)} input_scale e.g. {missing[:5]}")
+        raise RuntimeError(f"donor missing {len(missing)} input_scale e.g. {missing[:5]}")
     return out
 
 
@@ -275,7 +275,7 @@ def inc0_kproj(src_f) -> dict:
     return stats
 
 
-def write_model(src_path, dst_path, src_header, data_start, out_tensors, leftover_fp8, inproj_ab, hui_input, src_f):
+def write_model(src_path, dst_path, src_header, data_start, out_tensors, leftover_fp8, inproj_ab, donor_input, src_f):
     header_dict = {}
     offset = 0
     for name, dtype, shape, nbytes, kind, extra in out_tensors:
@@ -338,7 +338,7 @@ def write_model(src_path, dst_path, src_header, data_start, out_tensors, leftove
                             flush=True,
                         )
                 packed, scale, wgs = pack_cache[mod]
-                igs = torch.tensor([1.0 / hui_input[mod]], dtype=torch.float32)
+                igs = torch.tensor([1.0 / donor_input[mod]], dtype=torch.float32)
                 if name.endswith(".weight_packed"):
                     blob = tensor_bytes(packed, "U8")
                 elif name.endswith(".weight_scale"):
@@ -483,7 +483,7 @@ def validate(src_f) -> dict:
 
 
 def main() -> int:
-    global SRC, DST, HUI
+    global SRC, DST, DONOR
     ap = argparse.ArgumentParser(
         description="Pack leftover Unsloth FP8 Linears to compressed-tensors NVFP4."
     )
@@ -499,16 +499,16 @@ def main() -> int:
         help="Output dir (or DST_DIR). Example: $HOME/models/Qwen3.8-27B-NVFP4-unsloth-w4a4attn",
     )
     ap.add_argument(
-        "--huihui",
-        default=os.environ.get("HUIHUI_DIR", ""),
-        help="Huihui NVFP4 dir for read-only input_scale steal (or HUIHUI_DIR)",
+        "--nvfp4-donor",
+        default=os.environ.get("NVFP4_DONOR_DIR", ""),
+        help="a donor NVFP4 checkpoint for activation scales (or NVFP4_DONOR_DIR)",
     )
     args = ap.parse_args()
     SRC = args.src
     DST = args.dst
-    HUI = args.huihui
-    if not SRC or not DST or not HUI:
-        ap.error("set --src, --dst, and --huihui (or SRC_DIR, DST_DIR, HUIHUI_DIR)")
+    DONOR = args.nvfp4_donor
+    if not SRC or not DST or not DONOR:
+        ap.error("set --src, --dst, and --nvfp4-donor (or SRC_DIR, DST_DIR, NVFP4_DONOR_DIR)")
 
     torch.set_grad_enabled(False)
     torch.set_num_threads(max(1, os.cpu_count() or 8))
@@ -538,15 +538,15 @@ def main() -> int:
     src_f = safe_open(src_path, framework="pt")
     inc0 = None
     if not args.validate_only:
-        print("stealing Huihui input_scale (read-only)...", flush=True)
-        hui_input = steal_input_scales(leftover_fp8 | inproj_ab)
-        print(f"stolen {len(hui_input)} input_scale values", flush=True)
+        print("stealing donor input_scale (read-only)...", flush=True)
+        donor_input = steal_input_scales(leftover_fp8 | inproj_ab)
+        print(f"stolen {len(donor_input)} input_scale values", flush=True)
         print("running INC-0 k_proj pack...", flush=True)
         inc0 = inc0_kproj(src_f)
         print("streaming dest model.safetensors...", flush=True)
         total_data = write_model(
             src_path, dst_path, src_header, data_start, out_tensors,
-            leftover_fp8, inproj_ab, hui_input, src_f,
+            leftover_fp8, inproj_ab, donor_input, src_f,
         )
         copy_sidecars()
         n_wm, total_size = write_index(total_data, out_tensors)
